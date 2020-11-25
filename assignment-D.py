@@ -43,16 +43,16 @@ def testfunc(N,e):
 # OpgaveD2 
 # =============================================================================
 
-#n=5
-#eps=0.5
-#error=[]
-#for i in range(4,n+4):
-#    N=2**i
-#    print(N)
-#    un=opgaveD1(N,eps)
-#    error.append(max(np.abs(opgaveD1(N,eps)[0]-testfunc(N+2,eps))))    
-#plt.plot(range(5),error)
-#plt.yscale('log')
+n=5
+eps=0.5
+error=[]
+for i in range(4,n+4):
+    N=2**i
+    print(N)
+    un=opgaveD1(N,eps)
+    error.append(max(np.abs(opgaveD1(N,eps)[0]-testfunc(N+2,eps))))    
+plt.plot(range(5),error)
+plt.yscale('log')
 
 
 # =============================================================================

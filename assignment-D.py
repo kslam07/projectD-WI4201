@@ -39,8 +39,42 @@ def backwardGS(N, eps, rtol=1e-6):
         print(res)
     return un
 
+def backwardGS1(N, eps, rtol=1e-6):
+    # Initial values
+    h = 1 / N  # nr of lines
+
+    # Constant values - Boundary conditions
+    u0 = 1
+    unp1 = 0
+
+    # Discretization scheme and right-hand vector; CDS
+    A = scipy.sparse.diags([-eps / h - 1, 2 * eps / h + 1, -eps / h], [-1, 0, 1], shape=(N - 1, N - 1)).toarray()
+    f = np.zeros(N - 1)
+    f[0] = eps / h + 1  # bring bc to rhs
+    res = 1  # initial residual
+    u_old = np.zeros(N - 1)  # solution vector; iterated
+    u_new = np.zeros(N - 1)
+#     Solver
+    while res > rtol:
+        for i in range(N - 2, -1, -1):  # iterate backwards;
+#            print(i,u_new)
+            s1=0
+            for j in range(i+1,N-1): # sum of first part
+#                print('series1',j)
+                s1+=A[i,j]*u_new[j]
+            s2=0
+            for j in range(i,-1,-1): # sum second part
+#                print('series2',j)
+                s2+=A[i,j]*u_old[j]
+#            print(s1,s2)
+            u_new[i]=(f[i]-s1-s2)/A[i,i]
+        u_old=u_new
+        res = np.max(f - A @ u_new) / np.max(f)  # update residual;  using the infinity norm
+        print(res)
+    return u_new
+
 N = 5
 eps = 0.5
 
-sol = backwardGS(N, eps)
+sol = backwardGS1(N, eps)
 print(sol)

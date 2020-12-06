@@ -10,54 +10,37 @@ import matplotlib.pyplot as plt
 import scipy.sparse
 from sympy import Matrix
 
-def opgaveD1(N,e):
+
+def backwardGS(N, eps, rtol=1e-6):
     # Initial values
-    x= np.linspace(0,1,N)
-    h=1/N
-    
+    h = 1 / N  # nr of lines
+
     # Constant values - Boundary conditions
-    u0=1
-    unp1=0
-    
-    # Discretisation
-    A=scipy.sparse.diags([-e/h-1, 2*e/h+1, -e/h], [-1, 0, 1], shape=(N, N)).toarray()
-    print (A)
-    f=np.zeros(N)
-    f[0]=e/h+1
-    un=np.linalg.inv(A)@f
-    return np.concatenate(([u0],un,[unp1])), A, f
+    u0 = 1
+    unp1 = 0
 
-def testfunc(N,e):
-    x=np.linspace(0,1,N)
-    return (np.exp(x/e)-np.exp(1/e))/(1-np.exp(1/e))
+    # Discretization scheme and right-hand vector; CDS
+    A = scipy.sparse.diags([-eps / h - 1, 2 * eps / h + 1, -eps / h], [-1, 0, 1], shape=(N - 1, N - 1)).toarray()
+    f = np.zeros(N - 1)
+    f[0] = eps / h + 1  # bring bc to rhs
+    res = 1  # initial residual
+    un = np.zeros(N - 1)  # solution vector; iterated
+    # Solver
+    while res > rtol:
+        for i, ai in zip(range(N - 2, -1, -1), A[::-1]):  # iterate backwards; ai: rows of A
+            if i != 0 and i != N-2:
+                un[i] = (f[i] - ai[i:] @ un[i:] - ai[:i] @ un[:i]) / ai[i]
+            elif i == N-2:
+                un[i] = (f[i] - ai[:i] @ un[:i]) / ai[i]
+            else:
+                un[i] = (f[i] - ai[(i + 1):] @ un[(i + 1):]) / ai[i]
+            #print("iter:{} sol:{}".format(i, un))
+        res = np.max(f - A @ un) / np.max(f)  # update residual;  using the infinity norm
+        print(res)
+    return un
 
-#N=2
-#eps = np.linspace(1e-2,1,11)
-#for e in eps:
-##    plt.plot(np.linspace(0,1,N+2),opgaveD1(N,e)[0],label=str(e),ls='dotted')
-##    plt.plot(np.linspace(0,1,N+2),testfunc(N+2,e),label='testfunc'+str(e))
-#    plt.plot(np.linspace(0,1,N+2),(testfunc(N+2,e)-opgaveD1(N,e)[0])/testfunc(N+2,e),label=str(e))
-#plt.legend()
+N = 5
+eps = 0.5
 
-# =============================================================================
-# OpgaveD2 
-# =============================================================================
-
-n=5
-eps=0.5
-error=[]
-for i in range(4,n+4):
-    N=2**i
-    print(N)
-    un=opgaveD1(N,eps)
-    error.append(max(np.abs(opgaveD1(N,eps)[0]-testfunc(N+2,eps))))    
-plt.plot(range(5),error)
-plt.yscale('log')
-
-
-# =============================================================================
-#  OpgaveD3
-# =============================================================================
-A=opgaveD1(10,0.5)[1]
-np.allclose(A,A.T)
-print(sympy.Matrix(A).rref())
+sol = backwardGS(N, eps)
+print(sol)

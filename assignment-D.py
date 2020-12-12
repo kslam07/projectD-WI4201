@@ -67,26 +67,31 @@ def backwardGS1(N, eps, rtol=1e-6):
     f = np.zeros(N - 1)
     f[0] = eps / h + 1  # bring bc to rhs
     res = 1  # initial residual
-    u_old = np.zeros(N - 1)  # solution vector; iterated
-    u_new = np.zeros(N - 1)
+    un = np.zeros(N - 1)  # solution vector; iterated
+
 #     Solver
-    while res > rtol:
+    x=0
+    print(A,f)
+    while res > rtol and x<50:
+        x+=1
         for i in range(N - 2, -1, -1):  # iterate backwards;
 #            print(i,u_new)
             s1=0
             for j in range(i+1,N-1): # sum of first part
 #                print('series1',j)
-                s1+=A[i,j]*u_new[j]
+                s1+=A[i,j]*un[j]
             s2=0
-            for j in range(i,-1,-1): # sum second part
+            for j in range(i,0,-1): # sum second part
 #                print('series2',j)
-                s2+=A[i,j]*u_old[j]
+                s2+=A[i,j-1]*un[j-1]
 #            print(s1,s2)
-            u_new[i]=(f[i]-s1-s2)/A[i,i]
-        u_old=u_new
-        res = np.max(f - A @ u_new) / np.max(f)  # update residual;  using the infinity norm
+            un[i]=(f[i]-s1-s2)/A[i,i]
+            
+#            u_new[i]=(f[i]-A[i]@u_new)/A[i,i]
+#            print(i,u_new)
+        res = np.max(f - A @ un) / np.max(f)  # update residual;  using the infinity norm
         print(res)
-    return u_new
+    return un, A@un
 
 N = 5
 eps = 0.5

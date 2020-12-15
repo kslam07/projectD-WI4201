@@ -73,8 +73,8 @@ def jacobi(N, eps, rtol=1e-6):
             # print(row,u_current)
         u_current = u_new
         res = f - A @ u_new  # res_k+1 = f - A*u_k
-        res_scaled = np.sum(np.sqrt(res ** 2)) / np.sum(np.sqrt(f ** 2))
-        res_lst.append(np.sum(np.sqrt(res ** 2)))
+        res_scaled = np.linalg.norm(res) / np.linalg.norm(f)
+        res_lst.append(np.linalg.norm(res))
 
     return u_current, res_lst
 
@@ -92,18 +92,14 @@ def forwardGS(N, eps, rtol=1e-6):
     while res_scaled > rtol:
         for i, row in enumerate(A):
             u_current[i] = (f[i] - row[:i] @ u_current[:i] - row[i + 1:] @ u_current[i + 1:]) / A[i, i]
-        res = np.sum(np.sqrt((f - A @ u_current) ** 2))
-        res_scaled = res / np.sum(np.sqrt(f ** 2))
+        res = np.linalg.norm(f - A @ u_current)
+        res_scaled = res / np.linalg.norm(f)
         res_lst.append(res)
     return u_current, res_lst
 
 def backwardGS1(N, eps, rtol=1e-6):
     # Initial values
     h = 1 / N  # nr of lines
-
-    # Constant values - Boundary conditions
-    u0 = 1
-    unp1 = 0
 
     # Discretization scheme and right-hand vector; CDS
     A = scipy.sparse.diags([-eps / h - 1, 2 * eps / h + 1, -eps / h], [-1, 0, 1], shape=(N - 1, N - 1)).toarray()
@@ -123,9 +119,9 @@ def backwardGS1(N, eps, rtol=1e-6):
             for j in range(i, 0, -1):  # sum second part
                 s2 += A[i, j - 1] * un[j - 1]
             un[i] = (f[i] - s1 - s2) / A[i, i]
-            res = np.sum(np.sqrt((f - A @ un) ** 2))  # update residual;  using the infinity norm
-            res_scaled = res / np.sum(np.sqrt(f ** 2))
-            res_lst.append(res)
+        res = np.linalg.norm(f - A @ un)
+        res_scaled = res / np.linalg.norm(f)
+        res_lst.append(res)
     return un, res_lst
 
 def symmGS(N, eps, rtol=1e-6):
@@ -159,8 +155,8 @@ def symmGS(N, eps, rtol=1e-6):
                 for j in range(i, 0, -1):  # sum second part
                     s2 += A[i, j - 1] * un[j - 1]
                 un[i] = (f[i] - s1 - s2) / A[i, i]
-            res = np.sum(np.sqrt((f - A @ un) ** 2))  # update residual;  using the infinity norm
-            res_scaled = res / np.sum(np.sqrt(f ** 2))
+            res = np.linalg.norm(f - A @ un)
+            res_scaled = res / np.linalg.norm(f)
             res_lst.append(res)
     return un, res_lst
 
@@ -180,10 +176,10 @@ red_jac = res_lst_jac / res_km1
 
 # residual plots for JAC
 ax[0].plot(res_lst_jac / np.max(f))
-ax[1].plot(red_jac[2:], label="JAC")
+ax[1].plot(red_jac[1:], label="JAC")
 
 #=======================================================================================================================
-# RUN FORWARD FORWARD GAUSS-SEIDEL
+# RUN FORWARD GAUSS-SEIDEL
 u_gs, res_lst_gs = forwardGS(N, eps, rtol=1e-6)
 # u_exact,A,f=system_solver(N,eps)
 # print("Sol is close to exact sol: {}".format(np.allclose(u, u_exact[1:-1], rtol=1e-5)))
@@ -196,7 +192,7 @@ ax[0].plot(res_lst_gs / np.max(f))
 ax[1].plot(red_gs[1:], label="forward GS")
 
 #=======================================================================================================================
-# RUN FORWARD FORWARD GAUSS-SEIDEL
+# RUN BACKWARD GAUSS-SEIDEL
 u, res_lst_bgs = backwardGS1(N, eps)
 # u_exact,A,f=system_solver(N,eps)
 res_km1 = np.roll(res_lst_bgs, shift=1)
@@ -208,7 +204,7 @@ ax[1].plot(red_bgs[1:], label="backward GS")
 #print("Sol is close to exact sol: {}".format(np.allclose(u, u_exact[1:-1])))
 
 #=======================================================================================================================
-# RUN FORWARD FORWARD GAUSS-SEIDEL
+# RUN SYMMETRIC GAUSS-SEIDEL
 u, res_lst_symmgs = symmGS(N, eps)
 # u_exact,A,f=system_solver(N,eps)
 

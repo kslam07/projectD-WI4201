@@ -8,6 +8,7 @@ Created on Tue Nov 24 09:07:57 2020
 import numpy as np
 import matplotlib.pyplot as plt
 import scipy.sparse
+import copy
 from sympy import Matrix
 
 def system_solver(N, e):  # sets up system Au=f and solves it
@@ -71,7 +72,7 @@ def jacobi(N, eps, rtol=1e-6):
         for i, row in enumerate(A):
             u_new[i] = (f[i] - (row @ u_current - A[i, i] * u_current[i])) / A[i, i]
             # print(row,u_current)
-        u_current = u_new
+        u_current = copy.deepcopy(u_new)
         res = f - A @ u_new  # res_k+1 = f - A*u_k
         res_scaled = np.linalg.norm(res) / np.linalg.norm(f)
         res_lst.append(np.linalg.norm(res))

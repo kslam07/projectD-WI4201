@@ -4,6 +4,17 @@ import scipy.sparse
 from scipy.sparse.linalg import gmres
 from scipy.linalg import solve_triangular
 
+class gmres_counter(object):
+    def __init__(self, disp=True):
+        self._disp = disp
+        self.niter = 0
+        self.rk_lst = [1]
+    def __call__(self, pr_norm=None):
+        self.niter += 1
+        if self._disp:
+            print('iter %3i\trk = %s' % (self.niter, str(pr_norm)))
+            self.rk_lst.append(pr_norm)
+
 def system_solver(N, e):  # sets up system Au=f and solves it
     # Initial values
     h = 1 / N  # nr of lines
@@ -29,7 +40,9 @@ def test_gmres_solver(N, eps, rtol=1e-6):
     f = np.zeros(N - 1)
     f[0] = eps / h + 1  # bring bc to rhs
 
-    return gmres(A, f, tol=rtol, maxiter=3, restart=1)
+    counter = gmres_counter()
+    return gmres(A, f, tol=rtol, callback=counter, M=np.linalg.inv(np.identity(N - 1) * (2 * eps / h))
+                 , callback_type="pr_norm", restart=len(A), maxiter=len(A))[0], counter.rk_lst
 
 
 def full_gmres(N, eps, u0, max_iter=None, atol=1e-6):
@@ -44,6 +57,7 @@ def full_gmres(N, eps, u0, max_iter=None, atol=1e-6):
 
     # initialise arrays
     #res_scaled = np.linalg.norm(f - A @ un) / np.linalg.norm(f)
+    un = u0.copy()
     m = min(max_iter, A.shape[0]) if max_iter is not None else A.shape[0] # full GMRES or restarted GMRES
     vmat = np.zeros((N - 1, m))  # basis functions in Krylov space
     hmat = np.zeros((m + 1, m))  # Hessenberg matrix
@@ -70,7 +84,7 @@ def full_gmres(N, eps, u0, max_iter=None, atol=1e-6):
 
         # update last element in ith row, jth col
         hmat[j + 1, j] = np.linalg.norm(v_iter)
-        if j != m - 1:
+        if j != m - 1:  #  check if it is the end of the Hessenberg matrix
             vmat[:, j + 1] = v_iter / hmat[j + 1, j]
 
         # triangulize Hessenberg matrix
@@ -81,8 +95,11 @@ def full_gmres(N, eps, u0, max_iter=None, atol=1e-6):
         beta[j] = cs_vec[j] * beta[j]
         res_lst.append(np.abs(beta[j + 1]) / np.linalg.norm(f))
 
-    y = solve_triangular(hmat[:m, :m], beta[:m])  # solve the triangular system without inversion
-    un = u0 + vmat @ y
+        if res_lst[j] < atol:
+            break
+
+    y = solve_triangular(hmat[:j + 1, :j + 1], beta[:j + 1])  # solve the triangular system without inversion
+    un[:j + 1] = u0[:j + 1] + vmat[:j + 1, :j + 1] @ y
 
     return un, res_lst
 
@@ -118,17 +135,18 @@ def update_rotations(hcol_k, hcol_kp1):
 
     return cs, sn
 
-N = 8
+N = 64
 eps = 0.5
 u_exact, A, f = system_solver(N, eps)
 D = np.diag(np.ones(N - 1) * A[0, 0])
 B_jac = np.identity(N - 1) - np.matmul(np.linalg.inv(D), A)
 ev, ef = np.linalg.eig(B_jac)
-a = test_gmres_solver(N, eps)
-a1, res_lst_gm = full_gmres(N, eps, np.zeros(A.shape[0]), max_iter=5)
+a, res_lst_ex = test_gmres_solver(N, eps, rtol=1e-6)
+a1, res_lst_gm = full_gmres(N, eps, np.zeros(A.shape[0]))
 
 fig, ax = plt.subplots(1, 1, dpi=100)
 
 ax.plot(res_lst_gm)
+ax.plot(res_lst_ex)
 ax.grid()
 ax.set_yscale("log")

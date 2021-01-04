@@ -31,7 +31,7 @@ def system_solver(N, e):  # sets up system Au=f and solves it
     return np.concatenate(([u0], un, [unp1])), A, f
 
 
-def test_gmres_solver(N, eps, rtol=1e-6):
+def test_gmres_solver1D(N, eps, rtol=1e-6):
     # Initial values
     h = 1 / N  # nr of lines
 
@@ -44,6 +44,18 @@ def test_gmres_solver(N, eps, rtol=1e-6):
     return gmres(A, f, tol=rtol, callback=counter, M=np.linalg.inv(np.identity(N - 1) * (2 * eps / h))
                  , callback_type="pr_norm", restart=len(A), maxiter=len(A))[0], counter.rk_lst
 
+def test_gmres_solver2D(N, eps, rtol=1e-6):
+    # Initial values
+    h = 1 / N  # nr of lines
+
+    # Discretisation
+    A = A2dim(N)
+    f = np.ones(len(A))
+
+    counter = gmres_counter()
+    return gmres(A, f, tol=rtol, callback=counter, M=np.linalg.inv(np.identity(len(A)) * A[0,0])
+                 , callback_type="pr_norm", restart=len(A), maxiter=len(A))[0], counter.rk_lst
+
 def A2dim(n):
     # n=5 #number of outer points
     # P=12 # number of panels
@@ -51,7 +63,7 @@ def A2dim(n):
     h=1/N # spacing
     uijp1=-1
     uim1j=-1-h
-    uij=h
+    uij=4+h
     uip1j=-1
     uijm1=-1
     e=1
@@ -230,21 +242,32 @@ def update_rotations(hcol_k, hcol_kp1):
 
     return cs, sn
 
-
-
-N = 64
+#when using h as an input use:N=h+1
+N=10+1
 eps = 0.5
 u_exact, A, f = system_solver(N, eps)
 A=A2dim(N)
-# D = np.diag(np.ones(len(A)) * A[0, 0])
-# B_jac = np.identity(len(A)) - np.matmul(np.linalg.inv(D), A)
-# ev, ef = np.linalg.eig(B_jac)
-# a, res_lst_ex = test_gmres_solver(N, eps, rtol=1e-6)
-a1, res_lst_gm = full_gmres2D(N, eps, np.zeros(A.shape[0]))
+D = np.diag(np.ones(len(A)) * A[0, 0])
+B_jac = np.identity(len(A)) - np.matmul(np.linalg.inv(D), A)
+ev, ef = np.linalg.eig(B_jac)
+a, res_lst_ex = test_gmres_solver2D(N, eps, rtol=1e-6)
+a1, res_lst_gm = full_gmres2D(N, eps, np.zeros(A.shape[0]),atol=1e-10)
+y=np.zeros(len(ev))
+plt.scatter(ev,y,marker='o')
+a=(np.max(ev)-np.min(ev))/2
+b=0.0
+ev=np.sort(ev)
+y=np.sqrt(b*(1-ev**2/a))
+t=np.linspace(0,2*np.pi,100)
+plt.plot(np.max(ev)*np.cos(t),b*np.sin(t))
+# plt.axis('scaled')
+plt.grid()
+plt.xlabel('Re (-)')
+plt.ylabel('Im (-)')
+plt.savefig('ev_plot14',dpi=250)
+# fig, ax = plt.subplots(1, 1, dpi=100)
 
-fig, ax = plt.subplots(1, 1, dpi=100)
-
-ax.plot(res_lst_gm)
-ax.plot(res_lst_ex)
-ax.grid()
-ax.set_yscale("log")
+# ax.plot(res_lst_gm)
+# ax.plot(res_lst_ex)
+# ax.grid()
+# ax.set_yscale("log")

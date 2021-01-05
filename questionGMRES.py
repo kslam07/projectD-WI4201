@@ -243,7 +243,7 @@ def update_rotations(hcol_k, hcol_kp1):
     return cs, sn
 
 #when using h as an input use:N=h+1
-N=10+1
+N=5
 eps = 0.5
 u_exact, A, f = system_solver(N, eps)
 A=A2dim(N)

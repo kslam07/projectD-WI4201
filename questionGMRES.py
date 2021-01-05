@@ -164,7 +164,7 @@ def full_gmres1D(N, eps, u0, max_iter=None, atol=1e-6):
     return un, res_lst
 
 
-def full_gmres2D(N, eps, u0, max_iter=None, atol=1e-6):
+def full_gmres2D(N, u0, max_iter=None, atol=1e-6):
     # Initial values
     h = 1 / N  # nr of lines
     # Discretisation
@@ -253,32 +253,38 @@ def update_rotations(hcol_k, hcol_kp1):
 
     return cs, sn
 
-#when using h as an input use:N=h+1
-N=5
-eps = 0.5
-u_exact, A, f = system_solver(N, eps)
-A=A2dim(N)
-D = np.diag(np.ones(len(A)) * A[0, 0])
-B_jac = np.identity(len(A)) - np.matmul(np.linalg.inv(D), A)
-ev, ef = np.linalg.eig(B_jac)
-a, res_lst_ex = test_gmres_solver2D(N, eps, rtol=1e-6)
-a1, res_lst_gm = full_gmres2D(N, eps, np.zeros(A.shape[0]),atol=1e-10)
-y=np.zeros(len(ev))
-plt.scatter(ev,y,marker='o')
-a=(np.max(ev)-np.min(ev))/2
-b=0.0
-ev=np.sort(ev)
-y=np.sqrt(b*(1-ev**2/a))
-t=np.linspace(0,2*np.pi,100)
-plt.plot(np.max(ev)*np.cos(t),b*np.sin(t))
-# plt.axis('scaled')
-plt.grid()
-plt.xlabel('Re (-)')
-plt.ylabel('Im (-)')
-plt.savefig('ev_plot14',dpi=250)
-# fig, ax = plt.subplots(1, 1, dpi=100)
 
-# ax.plot(res_lst_gm)
-# ax.plot(res_lst_ex)
-# ax.grid()
-# ax.set_yscale("log")
+
+# =========================================== Q13 plotting code =================================================
+# n_range = 2 ** np.arange(4, 10, 1)
+# eps_range = [0.1, 0.25, 0.75, 1.0]
+#
+# fig, ax = plt.subplots(2, 3, dpi=200, sharex=False, sharey=True)
+# ax = ax.flatten()
+#
+# for i, N in enumerate(n_range):
+#
+#     for j, eps in enumerate(eps_range):
+#         u_exact, A, f = system_solver(N, eps)
+#         # A=A2dim(N)
+#         # D = np.diag(np.ones(len(A)) * A[0, 0])
+#         # B_jac = np.identity(len(A)) - np.matmul(np.linalg.inv(D), A)
+#         # ev, ef = np.linalg.eig(B_jac)
+#         u_test, res_lst_test = test_gmres_solver1D(N, eps, rtol=1e-6)
+#         # a1, res_lst_gm = full_gmres2D(N, eps, np.zeros(A.shape[0]),atol=1e-10)
+#         u_gm, res_lst_gm = full_gmres1D(N, eps, np.zeros(N - 1))
+#
+#         ax[i].plot(res_lst_test, label="Scipy's GMRES" if j == 0 else "", linestyle='--', c='k')
+#         ax[i].plot(res_lst_gm, label=r"$\epsilon$:{}".format(eps))
+#         ax[i].set_yscale("log")
+#         ax[i].grid()
+#         ax[i].set_xlabel("k [-]", fontsize=14)
+#         ax[i].set_ylabel(r"$\parallel{\mathbf{r}^{k}}\parallel/\parallel\mathbf{f}^{h}\parallel$", fontsize=14)
+#         ax[i].label_outer()
+#     ax[i].axhline(1e-6, c='k', linestyle='dashdot', label=r"tol=$10^{-6}$" if i == 0 else "")
+#     ax[i].set_title("N={}".format(N))
+#
+# ax[0].legend(prop={"size": 6})
+
+
+

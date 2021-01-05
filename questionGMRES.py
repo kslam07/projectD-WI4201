@@ -4,16 +4,19 @@ import scipy.sparse
 from scipy.sparse.linalg import gmres
 from scipy.linalg import solve_triangular
 
+
 class gmres_counter(object):
     def __init__(self, disp=True):
         self._disp = disp
         self.niter = 0
         self.rk_lst = [1]
+
     def __call__(self, pr_norm=None):
         self.niter += 1
         if self._disp:
             print('iter %3i\trk = %s' % (self.niter, str(pr_norm)))
             self.rk_lst.append(pr_norm)
+
 
 def system_solver(N, e):  # sets up system Au=f and solves it
     # Initial values
@@ -44,6 +47,7 @@ def test_gmres_solver1D(N, eps, rtol=1e-6):
     return gmres(A, f, tol=rtol, callback=counter, M=np.linalg.inv(np.identity(N - 1) * (2 * eps / h))
                  , callback_type="pr_norm", restart=len(A), maxiter=len(A))[0], counter.rk_lst
 
+
 def test_gmres_solver2D(N, eps, rtol=1e-6):
     # Initial values
     h = 1 / N  # nr of lines
@@ -53,48 +57,53 @@ def test_gmres_solver2D(N, eps, rtol=1e-6):
     f = np.ones(len(A))
 
     counter = gmres_counter()
-    return gmres(A, f, tol=rtol, callback=counter, M=np.linalg.inv(np.identity(len(A)) * A[0,0])
+    return gmres(A, f, tol=rtol, callback=counter, M=np.linalg.inv(np.identity(len(A)) * A[0, 0])
                  , callback_type="pr_norm", restart=len(A), maxiter=len(A))[0], counter.rk_lst
+
 
 def A2dim(n):
     # n=5 #number of outer points
     # P=12 # number of panels
-    N=n**2 #number of points in u vector
-    h=1/N # spacing
-    uijp1=-1
-    uim1j=-1-h
-    uij=4+h
-    uip1j=-1
-    uijm1=-1
-    e=1
-    
+    N = n ** 2  # number of points in u vector
+    h = 1 / N  # spacing
+    uijp1 = -1
+    uim1j = -1 - h
+    uij = 4 + h
+    uip1j = -1
+    uijm1 = -1
+    e = 1
+
     # uijp1=1
     # uim1j=2
     # uij=3
     # uip1j=4
     # uijm1=5
-    
+
     # A = scipy.sparse.diags([-e / h - 1, 2 * e / h + 1, -e / h], [-1, 0, 1], shape=(N - 1, N - 1)).toarray()
-    A = scipy.sparse.diags([uijp1, uim1j, uij, uip1j, uijm1], [-n, -1, 0, 1, n],shape=(N, N)).toarray()
+    A = scipy.sparse.diags([uijp1, uim1j, uij, uip1j, uijm1], [-n, -1, 0, 1, n], shape=(N, N)).toarray()
     # Only from nth plus one th column matrix is needed, the rest in bc
     # print(np.matrix(A))
-    
+
     # A = np.eye(N-1,N-1,k=-1)+np.eye(N-1,N-1,k=n)
     # # A=np.eye(N-1,N-1,k=(N-2))
     # print(A)
-    
-    r=np.concatenate((np.arange(n),np.arange(1,n+1)*-1))
-    r_col=[]
-    il=0
-    ir=n-1
-    for i in range(0,n-2):
-        r_col.extend((il+n*i,ir+n*i))
 
-    A=np.delete(A,r,1)
-    A=np.delete(A,r_col,1)
-    A=np.delete(A,r,0)
-    A=np.delete(A,r_col,0)
-    return A/h/h
+    r = np.concatenate((np.arange(n), np.arange(1, n + 1) * -1))
+    r_col = []
+    il = 0
+    ir = n - 1
+    for i in range(0, n - 2):
+        r_col.extend((il + n * i, ir + n * i))
+
+    # big fix for Sam
+    r = np.concatenate((r[r >= 0], [ri + n**2 for ri in r if ri < 0]))
+
+    A = np.delete(A, r, 1)
+    A = np.delete(A, r_col, 1)
+    A = np.delete(A, r, 0)
+    A = np.delete(A, r_col, 0)
+    return A / h / h
+
 
 def full_gmres1D(N, eps, u0, max_iter=None, atol=1e-6):
     # Initial values
@@ -107,9 +116,9 @@ def full_gmres1D(N, eps, u0, max_iter=None, atol=1e-6):
     f[0] = eps / h + 1  # bring bc to rhs
 
     # initialise arrays
-    #res_scaled = np.linalg.norm(f - A @ un) / np.linalg.norm(f)
+    # res_scaled = np.linalg.norm(f - A @ un) / np.linalg.norm(f)
     un = u0.copy()
-    m = min(max_iter, A.shape[0]) if max_iter is not None else A.shape[0] # full GMRES or restarted GMRES
+    m = min(max_iter, A.shape[0]) if max_iter is not None else A.shape[0]  # full GMRES or restarted GMRES
     vmat = np.zeros((N - 1, m))  # basis functions in Krylov space
     hmat = np.zeros((m + 1, m))  # Hessenberg matrix
     sn_vec = np.zeros(m)
@@ -135,7 +144,7 @@ def full_gmres1D(N, eps, u0, max_iter=None, atol=1e-6):
 
         # update last element in ith row, jth col
         hmat[j + 1, j] = np.linalg.norm(v_iter)
-        if j != m - 1:  #  check if it is the end of the Hessenberg matrix
+        if j != m - 1:  # check if it is the end of the Hessenberg matrix
             vmat[:, j + 1] = v_iter / hmat[j + 1, j]
 
         # triangulize Hessenberg matrix
@@ -154,18 +163,19 @@ def full_gmres1D(N, eps, u0, max_iter=None, atol=1e-6):
 
     return un, res_lst
 
+
 def full_gmres2D(N, eps, u0, max_iter=None, atol=1e-6):
     # Initial values
     h = 1 / N  # nr of lines
     # Discretisation
     A = A2dim(N)
-    M_inv = np.linalg.inv(np.eye(len(A))*A[0,0])
+    M_inv = np.linalg.inv(np.eye(len(A)) * A[0, 0])
     f = np.ones(len(A))
 
     # initialise arrays
-    #res_scaled = np.linalg.norm(f - A @ un) / np.linalg.norm(f)
+    # res_scaled = np.linalg.norm(f - A @ un) / np.linalg.norm(f)
     un = u0.copy()
-    m = min(max_iter, A.shape[0]) if max_iter is not None else A.shape[0] # full GMRES or restarted GMRES
+    m = min(max_iter, A.shape[0]) if max_iter is not None else A.shape[0]  # full GMRES or restarted GMRES
     vmat = np.zeros((len(A), m))  # basis functions in Krylov space
     hmat = np.zeros((m + 1, m))  # Hessenberg matrix
     sn_vec = np.zeros(m)
@@ -191,7 +201,7 @@ def full_gmres2D(N, eps, u0, max_iter=None, atol=1e-6):
 
         # update last element in ith row, jth col
         hmat[j + 1, j] = np.linalg.norm(v_iter)
-        if j != m - 1:  #  check if it is the end of the Hessenberg matrix
+        if j != m - 1:  # check if it is the end of the Hessenberg matrix
             vmat[:, j + 1] = v_iter / hmat[j + 1, j]
 
         # triangulize Hessenberg matrix
@@ -209,6 +219,7 @@ def full_gmres2D(N, eps, u0, max_iter=None, atol=1e-6):
     un[:j + 1] = u0[:j + 1] + vmat[:j + 1, :j + 1] @ y
 
     return un, res_lst
+
 
 def apply_rotation(hcol, cs_vec, sn_vec, k):
     """
@@ -234,9 +245,9 @@ def apply_rotation(hcol, cs_vec, sn_vec, k):
 
     return hcol, cs_vec, sn_vec
 
-def update_rotations(hcol_k, hcol_kp1):
 
-    t = np.sqrt(hcol_k**2 + hcol_kp1**2)
+def update_rotations(hcol_k, hcol_kp1):
+    t = np.sqrt(hcol_k ** 2 + hcol_kp1 ** 2)
     cs = hcol_k / t
     sn = hcol_kp1 / t
 

@@ -9,7 +9,7 @@ class gmres_counter(object):
     def __init__(self, disp=True):
         self._disp = disp
         self.niter = 0
-        self.rk_lst = [1]
+        self.rk_lst = [1.0]
 
     def __call__(self, pr_norm=None):
         self.niter += 1
@@ -45,7 +45,7 @@ def test_gmres_solver1D(N, eps, rtol=1e-6):
 
     counter = gmres_counter()
     return gmres(A, f, tol=rtol, callback=counter, M=np.linalg.inv(np.identity(N - 1) * (2 * eps / h))
-                 , callback_type="pr_norm", restart=len(A), maxiter=len(A))[0], counter.rk_lst
+                 , callback_type="pr_norm", restart=len(A), maxiter=1)[0], counter.rk_lst
 
 
 def test_gmres_solver2D(N, eps, rtol=1e-6):
@@ -58,7 +58,7 @@ def test_gmres_solver2D(N, eps, rtol=1e-6):
 
     counter = gmres_counter()
     return gmres(A, f, tol=rtol, callback=counter, M=np.linalg.inv(np.identity(len(A)) * A[0, 0])
-                 , callback_type="pr_norm", restart=len(A), maxiter=len(A))[0], counter.rk_lst
+                 , callback_type="pr_norm", restart=len(A), maxiter=1)[0], counter.rk_lst
 
 
 def A2dim(n):
@@ -253,19 +253,64 @@ def update_rotations(hcol_k, hcol_kp1):
 
     return cs, sn
 
+def restart_GMRES(N, eps, atol=1e-6, max_iter=1):
 
+    # first call
+    u_re, res_lst_re = full_gmres1D(N, eps, u0=np.zeros(N - 1), max_iter=max_iter)
+    # second call; use restarted sol. as initial sol. vector
+    u_gm, res_lst_gm = full_gmres1D(N, eps, u0=u_re, atol=atol)
+
+    return u_gm, np.concatenate((res_lst_re, res_lst_gm[1:]))
+
+def test_restart_GMRES(N, eps, max_iter):
+    # Initial values
+    h = 1 / N  # nr of lines
+
+    # Discretisation
+    A = scipy.sparse.diags([-eps / h - 1, 2 * eps / h + 1, -eps / h], [-1, 0, 1], shape=(N - 1, N - 1)).toarray()
+    f = np.zeros(N - 1)
+    f[0] = eps / h + 1  # bring bc to rhs
+
+    counter = gmres_counter()
+    u_re, res_lst_re = gmres(A, f, callback=counter, M=np.linalg.inv(np.identity(N - 1) * (2 * eps / h))
+                 , callback_type="pr_norm", restart=max_iter, maxiter=1)[0], counter.rk_lst
+    counter = gmres_counter()
+    u_gm, res_lst_gm = gmres(A, f, x0=u_re, callback=counter, M=np.linalg.inv(np.identity(N - 1) * (2 * eps / h))
+                 , callback_type="pr_norm", restart=len(A), maxiter=1)[0], counter.rk_lst
+    return u_gm, np.concatenate((res_lst_re, res_lst_gm[1:]))
 
 # =========================================== Q13 plotting code =================================================
+n = 512
+m_range = np.linspace(0.10, 0.5, 4) * n
+fig, ax = plt.subplots(2, 2, sharey=True, dpi=200)
+ax = ax.flatten()
+for i, m in enumerate(m_range):
+    u_re, res_re = restart_GMRES(n, 1, max_iter=int(m), atol=1e-9)
+    u_py, res_py = test_restart_GMRES(n, 1, max_iter=int(m))
+    u_full, res_full = full_gmres1D(n, 1, u0=np.zeros(n - 1), atol=1e-9)
+    ax[i].plot(res_re, label="Restarted GMRES(m)")
+    ax[i].plot(res_full, linestyle='dashdot', label="Full GMRES")
+    ax[i].plot(res_py, linestyle='--', c='k', label="Scipy GMRES")
+    ax[i].set_title("M={}".format(int(m)))
+    ax[i].set_yscale("log")
+    ax[i].grid()
+    ax[i].set_xlabel("k [-]", fontsize=12)
+    ax[i].set_ylabel(r"$\parallel{\mathbf{r}^{k}}\parallel/\parallel\mathbf{f}^{h}\parallel$", fontsize=12)
+    ax[i].label_outer()
+ax[0].legend()
+
+
+# =========================================== Q12 plotting code =================================================
 # n_range = 2 ** np.arange(4, 10, 1)
-# eps_range = [0.1, 0.25, 0.75, 1.0]
+# eps_range = [0.1, 0.5, 1.0]
 #
-# fig, ax = plt.subplots(2, 3, dpi=200, sharex=False, sharey=True)
+# fig, ax = plt.subplots(1, 3, dpi=200, sharex=False, sharey=True)
 # ax = ax.flatten()
 #
-# for i, N in enumerate(n_range):
+# for i, eps in enumerate(eps_range):
 #
-#     for j, eps in enumerate(eps_range):
-#         u_exact, A, f = system_solver(N, eps)
+#     for j, N in enumerate(n_range):
+#         # u_exact, A, f = system_solver(N, eps)
 #         # A=A2dim(N)
 #         # D = np.diag(np.ones(len(A)) * A[0, 0])
 #         # B_jac = np.identity(len(A)) - np.matmul(np.linalg.inv(D), A)
@@ -275,16 +320,16 @@ def update_rotations(hcol_k, hcol_kp1):
 #         u_gm, res_lst_gm = full_gmres1D(N, eps, np.zeros(N - 1))
 #
 #         ax[i].plot(res_lst_test, label="Scipy's GMRES" if j == 0 else "", linestyle='--', c='k')
-#         ax[i].plot(res_lst_gm, label=r"$\epsilon$:{}".format(eps))
+#         ax[i].plot(res_lst_gm, label=r"N={}".format(N))
 #         ax[i].set_yscale("log")
 #         ax[i].grid()
-#         ax[i].set_xlabel("k [-]", fontsize=14)
-#         ax[i].set_ylabel(r"$\parallel{\mathbf{r}^{k}}\parallel/\parallel\mathbf{f}^{h}\parallel$", fontsize=14)
+#         ax[i].set_xlabel("k [-]", fontsize=12)
+#         ax[i].set_ylabel(r"$\parallel{\mathbf{r}^{k}}\parallel/\parallel\mathbf{f}^{h}\parallel$", fontsize=12)
 #         ax[i].label_outer()
 #     ax[i].axhline(1e-6, c='k', linestyle='dashdot', label=r"tol=$10^{-6}$" if i == 0 else "")
-#     ax[i].set_title("N={}".format(N))
+#     ax[i].set_title(r"$\epsilon$={}".format(eps))
 #
-# ax[0].legend(prop={"size": 6})
+# ax[0].legend(prop={"size": 8})
 
 
 

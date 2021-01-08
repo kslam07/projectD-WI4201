@@ -48,7 +48,7 @@ def test_gmres_solver1D(N, eps, rtol=1e-6):
                  , callback_type="pr_norm", restart=len(A), maxiter=1)[0], counter.rk_lst
 
 
-def test_gmres_solver2D(N, eps, rtol=1e-6):
+def test_gmres_solver2D(N, rtol=1e-6):
     # Initial values
     h = 1 / N  # nr of lines
 
@@ -176,7 +176,7 @@ def full_gmres2D(N, u0, max_iter=None, atol=1e-6):
     # res_scaled = np.linalg.norm(f - A @ un) / np.linalg.norm(f)
     un = u0.copy()
     m = min(max_iter, A.shape[0]) if max_iter is not None else A.shape[0]  # full GMRES or restarted GMRES
-    vmat = np.zeros((len(A), m))  # basis functions in Krylov space
+    vmat = np.zeros((len(A), m + 1))  # basis functions in Krylov space
     hmat = np.zeros((m + 1, m))  # Hessenberg matrix
     sn_vec = np.zeros(m)
     cs_vec = np.zeros(m)
@@ -193,16 +193,15 @@ def full_gmres2D(N, u0, max_iter=None, atol=1e-6):
 
     # compute Hessenberg matrix
     for j in range(m):
-        # compute the Hessenerg matrix
+        # compute the Hessenberg matrix
         v_iter = M_inv @ A @ vmat[:, j]  # Krylov vector of column j with Jacobi left preconditioner
         for i in range(j + 1):
             hmat[i, j] = v_iter.T @ vmat[:, i]
             v_iter = v_iter - hmat[i, j] * vmat[:, i]
-
         # update last element in ith row, jth col
         hmat[j + 1, j] = np.linalg.norm(v_iter)
-        if j != m - 1:  # check if it is the end of the Hessenberg matrix
-            vmat[:, j + 1] = v_iter / hmat[j + 1, j]
+        # if j != m - 1:  # update Krylov vector if it is NOT the end of the Hessenberg matrix
+        vmat[:, j + 1] = v_iter / hmat[j + 1, j]
 
         # triangulize Hessenberg matrix
         hcol, cs_vec, sn_vec = apply_rotation(hmat[:, j], cs_vec, sn_vec, j)
@@ -212,11 +211,12 @@ def full_gmres2D(N, u0, max_iter=None, atol=1e-6):
         beta[j] = cs_vec[j] * beta[j]
         res_lst.append(np.abs(beta[j + 1]) / np.linalg.norm(f))
 
-        if res_lst[j] < atol:
+        if res_lst[j] <= atol:
             break
 
-    y = solve_triangular(hmat[:j + 1, :j + 1], beta[:j + 1])  # solve the triangular system without inversion
-    un[:j + 1] = u0[:j + 1] + vmat[:j + 1, :j + 1] @ y
+    y = np.linalg.inv(hmat[:j + 1, :j + 1]) @ beta[:j + 1]
+    # y = solve_triangular(hmat[:j + 1, :j + 1], beta[:j + 1])  # solve the triangular system without inversion
+    un = u0 + vmat[:, :j + 1] @ y
 
     return un, res_lst
 
@@ -279,25 +279,58 @@ def test_restart_GMRES(N, eps, max_iter):
                  , callback_type="pr_norm", restart=len(A), maxiter=1)[0], counter.rk_lst
     return u_gm, np.concatenate((res_lst_re, res_lst_gm[1:]))
 
+
+def restart_GMRES2D(N, tol=1e-6, max_iter=1):
+
+    # first call
+    u_re, res_lst_re = full_gmres2D(N, u0=np.zeros((N - 2)**2), max_iter=max_iter, atol=tol)
+    # second call; use restarted sol. as initial sol. vector
+    u_gm, res_lst_gm = full_gmres2D(N, u0=u_re, atol=tol)
+
+    return u_gm, np.concatenate((res_lst_re, res_lst_gm[1:]))
+
+
+def test_restart_GMRES2D(N, atol=1e-6, max_iter=1):
+
+    A = A2dim(N)
+    M_inv = np.linalg.inv(np.eye(len(A)) * A[0, 0])
+    f = np.ones(len(A))
+
+    counter = gmres_counter()
+    u_re, res_lst_re = gmres(A, f, callback=counter, M=M_inv
+                 , callback_type="pr_norm", restart=max_iter, maxiter=0)[0], counter.rk_lst
+
+    counter = gmres_counter()
+    u_gm, res_lst_gm = gmres(A, f, x0=u_re, callback=counter, M=M_inv
+                 , callback_type="pr_norm", restart=len(A), maxiter=1, atol=atol)[0], counter.rk_lst
+    return u_gm, np.concatenate((res_lst_re, res_lst_gm[1:]))
+# =========================================== Q14 plotting code =================================================
+u_re, res_re = restart_GMRES2D(8, max_iter=10, tol=1e-12)
+u_py, res_py = test_restart_GMRES2D(8, max_iter=10, atol=1e-12)
+#
+# u_re, res_re = full_gmres2D(8, u0=np.zeros(6**2), atol=1e-12)#
+# u_py, res_py = test_gmres_solver2D(8, rtol=1e-12)#
+plt.plot(res_re)
+plt.scatter(np.arange(len(res_py)), res_py)
+plt.yscale("log")
 # =========================================== Q13 plotting code =================================================
-n = 512
-m_range = np.linspace(0.10, 0.5, 4) * n
-fig, ax = plt.subplots(2, 2, sharey=True, dpi=200)
-ax = ax.flatten()
-for i, m in enumerate(m_range):
-    u_re, res_re = restart_GMRES(n, 1, max_iter=int(m), atol=1e-9)
-    u_py, res_py = test_restart_GMRES(n, 1, max_iter=int(m))
-    u_full, res_full = full_gmres1D(n, 1, u0=np.zeros(n - 1), atol=1e-9)
-    ax[i].plot(res_re, label="Restarted GMRES(m)")
-    ax[i].plot(res_full, linestyle='dashdot', label="Full GMRES")
-    ax[i].plot(res_py, linestyle='--', c='k', label="Scipy GMRES")
-    ax[i].set_title("M={}".format(int(m)))
-    ax[i].set_yscale("log")
-    ax[i].grid()
-    ax[i].set_xlabel("k [-]", fontsize=12)
-    ax[i].set_ylabel(r"$\parallel{\mathbf{r}^{k}}\parallel/\parallel\mathbf{f}^{h}\parallel$", fontsize=12)
-    ax[i].label_outer()
-ax[0].legend()
+# n = 512
+# m_range = np.linspace(0.10, 0.5, 4) * n
+# fig, ax = plt.subplots(2, 2, sharey=True, dpi=200)
+# ax = ax.flatten()
+# for i, m in enumerate(m_range):
+#     u_re, res_re = restart_GMRES(n, 1, max_iter=int(m), atol=1e-9)
+#     u_py, res_py = test_restart_GMRES(n, 1, max_iter=int(m))
+#     u_full, res_full = full_gmres1D(n, 1, u0=np.zeros(n - 1), atol=1e-9)
+#     ax[i].plot(res_re, label="Restarted GMRES(m)")
+#     ax[i].plot(res_full, linestyle='dashdot', label="Full GMRES")
+#     ax[i].plot(res_py, linestyle='--', c='k', label="Scipy GMRES")
+#     ax[i].set_title("M={}".format(int(m)))
+#     ax[i].set_yscale("log")
+#     ax[i].grid()
+#     ax[i].set_xlabel("k [-]", fontsize=12)
+#     ax[i].set_ylabel(r"$\parallel{\mathbf{r}^{k}}\parallel/\parallel\mathbf{f}^{h}\parallel$", fontsize=12)
+# ax[0].legend()
 
 
 # =========================================== Q12 plotting code =================================================
@@ -315,9 +348,9 @@ ax[0].legend()
 #         # D = np.diag(np.ones(len(A)) * A[0, 0])
 #         # B_jac = np.identity(len(A)) - np.matmul(np.linalg.inv(D), A)
 #         # ev, ef = np.linalg.eig(B_jac)
-#         u_test, res_lst_test = test_gmres_solver1D(N, eps, rtol=1e-6)
+#         u_test, res_lst_test = test_gmres_solver1D(N, eps, rtol=1e-9)
 #         # a1, res_lst_gm = full_gmres2D(N, eps, np.zeros(A.shape[0]),atol=1e-10)
-#         u_gm, res_lst_gm = full_gmres1D(N, eps, np.zeros(N - 1))
+#         u_gm, res_lst_gm = full_gmres1D(N, eps, np.zeros(N - 1), atol=1e-9)
 #
 #         ax[i].plot(res_lst_test, label="Scipy's GMRES" if j == 0 else "", linestyle='--', c='k')
 #         ax[i].plot(res_lst_gm, label=r"N={}".format(N))
